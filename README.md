@@ -24,9 +24,12 @@ and can create experiments with parameters for single or multiple days to run. T
 ### Baselines:
 **REV** is a sample baseline similar to the state of the art studies which focus on maximizing the allocated tasks which in our case translates to maximizing the total revenue generated from allocating tasks.
 REV tries to allocate tasks to the AGRs to maximize the total revenue along with taking into consideration the distance needed to travel for executing tasks to further optimize the task allocation.
+
 **DEG** is a sample baseline which prioritizes minimizing battery degradation while allocating tasks to the AGRs without focusing on high revenue generation.
 ### Our Algorithms:
+
 **BTC-M** It is the proposed algorithm which uses our utility based proposed allocation() algorithm and uses weighted matching algorithm based on the Kuhn-Munkres approach to finalize the allocation decision from the genrated utility matrix which defines a bipartite graph. 
+
 **BTC-G** It is a variant of BTC-M which utilizes a greedy approach to provide a sub-optimal allocation decision. 
 
 
