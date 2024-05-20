@@ -70,10 +70,10 @@ def manhattan_distance(p1, p2):
     return abs(p1[0] - p2[0]) + abs(p1[1] - p2[1])
 
 ###function to calculate average_task_completion time by all the robots in avail_robots list
-def calc_avg_task_completion_time(robot, tasks_list, robot_speed):
+def calc_avg_task_completion_time(robot, tasks_list, r_s):
     completion_times = []
     for task in tasks_list:
-        completion_time = round((manhattan_distance(robot.cur_loc, task.start_loc) + task.total_distance_to_cover) / robot_speed)
+        completion_time = round((manhattan_distance(robot.cur_loc, task.start_loc) + task.total_distance_to_cover) / r_s)
         if completion_time == 0:
             completion_time = 1
         completion_times.append(completion_time)
@@ -326,7 +326,7 @@ def update_avail_lists(k):
 
 
 # Define a function that represents a worker thread
-def calculate_matrix_row(matrix, avail_robots, avail_tasks, robot_speed, start_row, end_row):
+def calculate_matrix_row(matrix, avail_robots, avail_tasks, r_s, start_row, end_row):
     for i in range(start_row, end_row):
         robot = avail_robots[i]
         ###first check if robot will have enough energy to reach to the nearest CS
@@ -334,7 +334,7 @@ def calculate_matrix_row(matrix, avail_robots, avail_tasks, robot_speed, start_r
             prev_trace = get_charge_trace(robot, k)
             total_dis = (manhattan_distance(robot.cur_loc, avail_tasks[j].start_loc)) + avail_tasks[j].total_distance_to_cover
             slope = avail_tasks[j].t_slope
-            total_time_required = round (total_dis/robot_speed)
+            total_time_required = round (total_dis/r_s)
             if total_time_required == 0:
                 total_time_required = 1
             energy_consumption = calc_energy_consumption(slope, incline = 1)        
@@ -350,7 +350,7 @@ def calculate_matrix_row(matrix, avail_robots, avail_tasks, robot_speed, start_r
                 print(f"matrix element for robot {robot.original_index} and task {avail_tasks[j].original_index} is {matrix[i][j]}")
 
 # Function to allocate threads and perform parallel computation for the matrix
-def allocate_threads(matrix, avail_robots, avail_tasks, robot_speed, num_threads):
+def allocate_threads(matrix, avail_robots, avail_tasks, r_s, num_threads):
     rows_per_thread = len(matrix) // num_threads
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
         future_to_row = {
@@ -359,7 +359,7 @@ def allocate_threads(matrix, avail_robots, avail_tasks, robot_speed, num_threads
                 matrix,
                 avail_robots,
                 avail_tasks,
-                robot_speed,
+                r_s,
                 i * rows_per_thread,
                 (i + 1) * rows_per_thread if i < num_threads - 1 else len(matrix),
             ): i
@@ -411,7 +411,7 @@ def allocation(k, all_robots, all_tasks, avail_robots, avail_tasks, needs_charge
     total  = None
     matrix = [[0 for _ in range(len(avail_tasks))] for _ in range(len(avail_robots))]
     # Call the function to allocate threads using ThreadPoolExecutor
-    matrix = allocate_threads(matrix, avail_robots, avail_tasks, robot_speed, num_threads)
+    matrix = allocate_threads(matrix, avail_robots, avail_tasks, r_s, num_threads)
     ###further tasks after calculating the matrix are written below            
     ##printing the matrix
     print("------before tunning-matrix:")
@@ -430,7 +430,7 @@ def allocation(k, all_robots, all_tasks, avail_robots, avail_tasks, needs_charge
             # If matched with a task
             task = avail_tasks[col_index]
             total_dis = (manhattan_distance(robot.cur_loc, avail_tasks[col_index].start_loc)) + avail_tasks[col_index].total_distance_to_cover
-            total_time_required = round(total_dis/robot_speed)
+            total_time_required = round(total_dis/r_s)
             if total_time_required == 0:
                 total_time_required = 1
             all_robots[robot.original_index].status = "busy"
@@ -458,12 +458,12 @@ def update_object_parameters(selected_object, attribute_updates, all_objects):
                 setattr(o, attribute, new_value)
             break
 ###calc CS_reaching time
-def calc_cs_reaching_time(robot, cs, robot_speed, k):
+def calc_cs_reaching_time(robot, cs, r_s, k):
     dis_to_CS = manhattan_distance(robot.cur_loc, cs.CS_location)
     if dis_to_CS == 0:
         CS_reaching_time = k
     else:
-        time_to_reach_CS = round(dis_to_CS/robot_speed)
+        time_to_reach_CS = round(dis_to_CS/r_s)
         if time_to_reach_CS == 0:
             time_to_reach_CS = 1    
         CS_reaching_time = k+time_to_reach_CS
@@ -483,7 +483,7 @@ def charging_decision(need_charge_indexes, all_robots, all_CS, avail_CS):
             if closest_CS:
                 if is_available:
                     print(f"robot {robot.original_index} is matched with avail CS {closest_CS.original_index}")
-                    cs_reaching_time = calc_cs_reaching_time(robot, closest_CS, robot_speed, k)
+                    cs_reaching_time = calc_cs_reaching_time(robot, closest_CS, r_s, k)
                     print(f"robot {robot.original_index} 's cs reaching time to avail CS {closest_CS.original_index} is {cs_reaching_time}")
                     robot.allocated_CS = closest_CS.original_index
                     if cs_reaching_time == k:
@@ -511,7 +511,7 @@ def charging_decision(need_charge_indexes, all_robots, all_CS, avail_CS):
                     #     closest_CS.robot_waiting_to_charge = robot_index
                     # print(f"robot_waiting_to_charge {closest_CS.robot_waiting_to_charge}")
                     print(f"robot {robot.original_index} is matched with occupied CS {closest_CS.original_index}")
-                    cs_reaching_time = calc_cs_reaching_time(robot, closest_CS, robot_speed, k)
+                    cs_reaching_time = calc_cs_reaching_time(robot, closest_CS, r_s, k)
                     print(f"robot {robot.original_index} 's cs reaching time to occupied CS {closest_CS.original_index} is {cs_reaching_time}")
                     robot.allocated_CS = closest_CS.original_index
                     if cs_reaching_time == k:
@@ -626,8 +626,8 @@ period_length_sec = 60 ## period length in second (600 = 10 min, 300 = 5 min, 60
 period_length_sec = params.get('period_length_sec', None)
 soc_threshold = 50 ##this is for v_soc calculation
 cpu_frq = 2.26 ## cpu frequency in GHz
-robot_speed = 1.3 * period_length_sec ##in meter/sec or metter/minute according to period puration. the multiplication with period_length is done to convert it according to the decision period
-# robot_speed = 2.6 * period_length_sec ##using this speed to have less time to execute tasks
+r_s = 1.3 * period_length_sec ##in meter/sec or metter/minute according to period puration. the multiplication with period_length is done to convert it according to the decision period
+# r_s = 2.6 * period_length_sec ##using this speed to have less time to execute tasks
 rob_speed = 1.6 ###m/s to use in the energy consumption calc
 rob_weight = 20  ##in kg
 gravity_acceleration = 9.8 ##in m/s2

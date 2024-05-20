@@ -91,10 +91,10 @@ def manhattan_distance(p1, p2):
     return abs(p1[0] - p2[0]) + abs(p1[1] - p2[1])
 
 ###function to calculate average_task_completion time by all the robots in avail_robots list
-def calc_avg_task_completion_time(robot, tasks_list, robot_speed):
+def calc_avg_task_completion_time(robot, tasks_list, r_s):
     completion_times = []
     for task in tasks_list:
-        completion_time = round((manhattan_distance(robot.cur_loc, task.start_loc) + task.total_distance_to_cover) / robot_speed)
+        completion_time = round((manhattan_distance(robot.cur_loc, task.start_loc) + task.total_distance_to_cover) / r_s)
         if completion_time == 0:
             completion_time = 1
         completion_times.append(completion_time)
@@ -307,7 +307,7 @@ def update_avail_lists(k):
 
 ###code for threading
 # Define a function that represents a worker thread
-def calculate_matrix_row(matrix, avail_robots, avail_tasks, avail_CS, robot_speed, old_deg_min, old_deg_max, task_min, task_max, q1, q2, q3, start_row, end_row):
+def calculate_matrix_row(matrix, avail_robots, avail_tasks, avail_CS, r_s, old_deg_min, old_deg_max, task_min, task_max, q1, q2, q3, start_row, end_row):
     for i in range(start_row, end_row):
         robot = avail_robots[i]
         for j in range(len(matrix[0])):
@@ -316,7 +316,7 @@ def calculate_matrix_row(matrix, avail_robots, avail_tasks, avail_CS, robot_spee
                 prev_trace = get_charge_trace(robot, k)
                 total_dis = (manhattan_distance(robot.cur_loc, avail_tasks[j].start_loc)) + avail_tasks[j].total_distance_to_cover
                 slope = avail_tasks[j].t_slope
-                total_time_required = round (total_dis/robot_speed)
+                total_time_required = round (total_dis/r_s)
                 if total_time_required == 0:
                     total_time_required = 1
                 energy_consumption = calc_energy_consumption(slope, incline = 1)        
@@ -331,7 +331,7 @@ def calculate_matrix_row(matrix, avail_robots, avail_tasks, avail_CS, robot_spee
                         distance = manhattan_distance(avail_tasks[j].end_loc, cs.CS_location)
                         if distance > max_distance:
                             max_distance = distance
-                    time_2_reach_CS = round(max_distance/robot_speed)
+                    time_2_reach_CS = round(max_distance/r_s)
                     if time_2_reach_CS == 0:
                         time_2_reach_CS = 1
                     least_required_e_to_reach_cs = time_2_reach_CS * fixed_energy_consumption   ##calc the amount of e to reach to the fathest CS
@@ -363,7 +363,7 @@ def calculate_matrix_row(matrix, avail_robots, avail_tasks, avail_CS, robot_spee
                     matrix[i][j] = None       
                 else:
                     dis_to_CS = manhattan_distance(robot.cur_loc, avail_CS[j - len(avail_tasks)].CS_location)
-                    time_to_reach_CS = round(dis_to_CS/robot_speed)
+                    time_to_reach_CS = round(dis_to_CS/r_s)
                     if time_to_reach_CS == 0:
                         time_to_reach_CS = 1
                     curr_e = robot.state_of_charge
@@ -377,7 +377,7 @@ def calculate_matrix_row(matrix, avail_robots, avail_tasks, avail_CS, robot_spee
                             if recharge_dur == 0:
                                 recharge_dur = 1
                         else:
-                            recharge_dur = calc_avg_task_completion_time(robot, avail_tasks, robot_speed)
+                            recharge_dur = calc_avg_task_completion_time(robot, avail_tasks, r_s)
                         prev_trace = get_charge_trace(robot, k)
                         future_soc_trace = create_future_SoC_trace_charge_idle(prev_trace, fixed_energy_consumption, time_to_reach_CS, recharge_dur, energy_consumption_while_idle, op = "charge")
                         deg = degradation_calc(future_soc_trace, robot.initial_deg)
@@ -411,7 +411,7 @@ def calculate_matrix_row(matrix, avail_robots, avail_tasks, avail_CS, robot_spee
                     matrix[i][j] = None
 
 # Function to allocate threads and perform parallel computation for the matrix
-def allocate_threads(matrix, avail_robots, avail_tasks, avail_CS, robot_speed, old_deg_min, old_deg_max, task_min, task_max, q1, q2, q3, num_threads):
+def allocate_threads(matrix, avail_robots, avail_tasks, avail_CS, r_s, old_deg_min, old_deg_max, task_min, task_max, q1, q2, q3, num_threads):
     rows_per_thread = len(matrix) // num_threads
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
         future_to_row = {
@@ -421,7 +421,7 @@ def allocate_threads(matrix, avail_robots, avail_tasks, avail_CS, robot_speed, o
                 avail_robots,
                 avail_tasks,
                 avail_CS,
-                robot_speed,
+                r_s,
                 # energy_consumption,
                 old_deg_min,
                 old_deg_max,
@@ -448,7 +448,7 @@ def allocation(k, all_robots, all_CS, all_tasks, avail_robots, avail_CS, avail_t
     # Create matrix and initialize variables
     matrix = [[0 for _ in range(len(avail_tasks) + len(avail_CS) + len(avail_robots))] for _ in range(len(avail_robots))]
     # Call the function to allocate threads using ThreadPoolExecutor
-    matrix = allocate_threads(matrix, avail_robots, avail_tasks, avail_CS, robot_speed, old_deg_min, old_deg_max, task_min, task_max, q1, q2, q3, num_threads)
+    matrix = allocate_threads(matrix, avail_robots, avail_tasks, avail_CS, r_s, old_deg_min, old_deg_max, task_min, task_max, q1, q2, q3, num_threads)
     ###further tasks after calculating the matrix are written below            
     ##printing the matrix
     print("-------matrix:")
@@ -463,7 +463,7 @@ def allocation(k, all_robots, all_CS, all_tasks, avail_robots, avail_CS, avail_t
         if col_index < len(avail_tasks):
             task = avail_tasks[col_index]
             total_dis = (manhattan_distance(robot.cur_loc, avail_tasks[col_index].start_loc)) + avail_tasks[col_index].total_distance_to_cover
-            total_time_required = round(total_dis/robot_speed)
+            total_time_required = round(total_dis/r_s)
             if total_time_required == 0:
                 total_time_required = 1
             all_robots[robot.original_index].status = "busy"
@@ -494,7 +494,7 @@ def allocation(k, all_robots, all_CS, all_tasks, avail_robots, avail_CS, avail_t
                     all_CS[cs.original_index].CS_status = "occupied"
                     all_CS[cs.original_index].robot_charging = robot.original_index
                 else:
-                    time_to_reach_CS = round(dis_to_CS/robot_speed)
+                    time_to_reach_CS = round(dis_to_CS/r_s)
                     if time_to_reach_CS == 0:
                         time_to_reach_CS = 1
                     all_robots[robot.original_index].status = "going to recharge"
@@ -530,7 +530,7 @@ def allocation(k, all_robots, all_CS, all_tasks, avail_robots, avail_CS, avail_t
                     preferred_CS = all_CS[preferred_CS_index]
                     dis_to_reach = manhattan_distance(robot.cur_loc, preferred_CS.CS_location)
                     # print("preferred CS's distance is", dis_to_reach)
-                    time_to_reach = round(dis_to_reach/robot_speed)
+                    time_to_reach = round(dis_to_reach/r_s)
                     if time_to_reach == 0:
                         time_to_reach = 1
                     all_robots[robot.original_index].CS_reaching_time  = k + time_to_reach
@@ -646,8 +646,8 @@ period_length_sec = params.get('period_length_sec', None)
 # soc_threshold = 50 ##this is for v_soc calculation
 soc_threshold = params.get('soc_threshold', None) ##this is for v_soc calculation
 cpu_frq = 2.26 ## cpu frequency in GHz
-robot_speed = 1.52 * period_length_sec ##in meter/sec or metter/minute according to period puration. the multiplication with period_length is done to convert it according to the decision period
-# robot_speed = 2.6 *period_length_sec ##using this speed to have less time to execute tasks
+r_s = 1.52 * period_length_sec ##in meter/sec or metter/minute according to period puration. the multiplication with period_length is done to convert it according to the decision period
+# r_s = 2.6 *period_length_sec ##using this speed to have less time to execute tasks
 rob_speed = 1.6 ###m/s to use in the energy consumption calc
 rob_weight = 20  ##in kg
 gravity_acceleration = 9.8 ##in m/s2
